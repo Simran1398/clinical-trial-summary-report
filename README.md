@@ -24,16 +24,16 @@ This project simulates a real-world clinical trial summary analysis using public
 - `knitr`, `rmarkdown` – Reporting  
 
 ---
-
 ## Folder Structure
-Clinical-Trial-Summary-Report-/
-├── data/ # Cleaned dataset (simulated from public sources)
-├── R/ # R scripts for each stage of the analysis
-├── outputs/ # Plots, summary tables, interactive HTML outputs
-├── report/
-│ └── Clinical_Report.html # Final rendered summary report
-└── README.md
-
+```
+Clinical-Trial-Summary-Report/
+├── data/           # Cleaned dataset (simulated from public sources)
+├── scripts/        # R scripts for each stage of the analysis
+├── outputs/        # Plots, summary tables, interactive HTML outputs
+├── report/         
+│   └── Clinical_Report.html   # Final rendered summary report
+└── README.md       # Project README file
+```
 ---
 
 ##  Key Analyses Performed
@@ -65,10 +65,12 @@ You can view the full HTML report [here](./report/Clinical_Report.html) *(open l
 ##  Contact
 
 **Simranpreet Singh**  
-📧 [Add your email]  
-🔗 [LinkedIn Profile]  
+simran1661998@gmail.com 
+ 
 
 ---
+License
+This project is for educational and portfolio use only.
 
 > ⚠️ *Disclaimer: This project uses simulated or publicly available data and is for educational/portfolio purposes only. No real patient data is involved.*
 
