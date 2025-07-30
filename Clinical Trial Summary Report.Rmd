@@ -1,0 +1,299 @@
+---
+title: "Clinical Trial Summary Report"
+author: "Simranpreet Singh"
+output: html_document
+date: "2025-06-24"
+---
+
+# Purpose of project and Dataset details
+
+This mini-project explores summary data from a clinical trial on Dapagliflozin (NCT01400884) in type 2 diabetes. It includes data cleaning, statistical summaries, AE profiling, survival analysis, and interactive visualizations, mimicking real-world workflows in pharmacovigilance and clinical reporting.
+
+# Tools and Packages used
+
+**Data Handling**: tidyverse, janitor, here
+
+**Reporting**: gtsummary, gt, Tplyr
+
+**Visualization**: ggplot2, patchwork, plotly, survminer
+
+**Interactivity**: DT, shiny
+
+**Clinical Packages**: admiral, survival
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Phase 1: Data Cleaning and Structuring
+
+In this phase, we load and preprocess the clinical trial data. The focus is on standardizing variable names, correcting data types, and formatting the datasets for downstream analysis.
+
+```{r Phase1}
+
+# Load libraries
+library(tidyverse)
+library(janitor)
+library(here)
+library(gtsummary)
+library(ggpubr)
+library(patchwork)
+library(gt)
+library(flextable)
+library(shiny)
+library(DT)
+library(plotly)
+library(cardx)
+library(rmarkdown)
+library(officer)
+library(webshot)
+library(tinytex)
+library(survival)
+library(survminer)
+library(admiral)
+library(Tplyr)
+library(remotes)
+library(bslib)
+
+# Load and clean datasets
+baseline <- read_csv(here("C:/Users/simranpreet/OneDrive - Nottingham Trent University/clinical_trial_NCT01400884/clinical-trial-summary-real/data", "baseline.csv"), show_col_types = FALSE) %>% clean_names()
+ae_summary <- read_csv(here("C:/Users/simranpreet/OneDrive - Nottingham Trent University/clinical_trial_NCT01400884/clinical-trial-summary-real/data", "ae_summary.csv"), show_col_types = FALSE) %>% clean_names()
+
+# Clean baseline data
+baseline_clean <- baseline %>%
+  mutate(
+    treatment_arm = factor(treatment_arm),
+    sex_male_percent = as.numeric(sex_male_percent),
+    sex_female_percent = as.numeric(sex_female_percent),
+    bmi_mean = round(bmi_mean, 1)
+  ) %>%
+  select(treatment_arm, n, age_mean, age_sd, sex_male_percent, sex_female_percent, bmi_mean)
+
+# Clean AE data
+ae_clean <- ae_summary %>%
+  mutate(
+    treatment_arm = factor(treatment_arm),
+    ae_category = str_to_title(ae_category),
+    ae_severity = factor(ae_severity, levels = c("Mild", "Moderate", "Severe")),
+    percent_events = round(percent_percent, 1)
+  ) %>%
+  select(treatment_arm, ae_category, ae_severity, n_events, percent_events)
+
+# Save cleaned files
+if (!dir.exists(here("outputs", "cleaned"))) {
+  dir.create(here("outputs", "cleaned"), recursive = TRUE)
+}
+
+write_csv(baseline_clean, here("outputs", "cleaned", "baseline_clean.csv"))
+write_csv(ae_clean, here("outputs", "cleaned", "ae_summary_clean.csv"))
+```
+
+# Phase 2: Statistical Summary and Visualizations
+
+This phase transforms cleaned data into meaningful statistical tables and plots to summarize baseline characteristics, adverse events, and treatment outcomes.
+
+**Objectives:** - Compare demographics (age, BMI) across treatment arms. - Explore adverse event distributions by severity. - Generate Kaplan-Meier survival curves.
+
+```{r Phase2_summary_tables}
+# Load cleaned data
+baseline_clean <- read_csv(here("outputs", "cleaned", "baseline_clean.csv"), show_col_types = FALSE)
+ae_clean <- read_csv(here("outputs", "cleaned", "ae_summary_clean.csv"), show_col_types = FALSE)
+
+# Summary statistics with gtsummary
+baseline_clean %>%
+  tbl_summary(by = treatment_arm, 
+              statistic = list(all_continuous() ~ "{mean} ({sd})", 
+                               all_categorical() ~ "{n} ({p}%)")) %>%       
+  add_p() %>%
+  modify_header(label ~ "**Variable**") %>%
+  bold_labels()
+
+# Simulate survival data (replace with real data if available)
+set.seed(100)
+survival_data <- tibble(
+  treatment_arm = rep(c("A", "B"), each = 50),
+  time = round(rexp(100, rate = 0.1), 1),
+  status = sample(0:1, 100, replace = TRUE)
+)
+
+# Kaplan-Meier plot
+km_fit <- survfit(Surv(time, status) ~ treatment_arm, data = survival_data)
+
+km_plot <- ggsurvplot(
+  km_fit,
+  data = survival_data,
+  pval = TRUE,
+  conf.int = TRUE,
+  risk.table = TRUE,
+  title = "Kaplan-Meier Survival by Treatment Arm",
+  xlab = "Time (days)",
+  ylab = "Survival Probability",
+  legend.title = "Treatment"
+)
+km_plot
+
+# Chi-square test
+chisq_table <- ae_clean %>%
+  count(treatment_arm, ae_category) %>%
+  pivot_wider(names_from = ae_category, values_from = n, values_fill = 0)
+
+chisq.test(chisq_table[,-1])
+chisq_table
+fisher.test(chisq_table[,-1])
+
+
+# AE plot
+ae_plot <- ggplot(ae_clean, aes(x = ae_category, y = n_events, fill = ae_severity)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~ treatment_arm) +
+  labs(title = "Adverse Events by Treatment Arm", x = "AE Category", y = "Number of Events") +
+  theme_minimal()
+ae_plot
+
+# Patchwork layout for age and BMI
+age_plot <- ggplot(baseline_clean, aes(x = treatment_arm, y = age_mean)) +
+  geom_col(fill = "skyblue") +
+  labs(title = "Mean Age by Treatment Arm", y = "Mean Age")
+
+bmi_plot <- ggplot(baseline_clean, aes(x = treatment_arm, y = bmi_mean)) +
+  geom_col(fill = "orange") +
+  labs(title = "Mean BMI by Treatment Arm", y = "Mean BMI")
+
+age_plot + bmi_plot
+
+# Flextable report
+baseline_clean %>%
+  group_by(treatment_arm) %>%
+  summarise(
+    N = sum(n),
+    Age_Mean = round(mean(age_mean, na.rm = TRUE), 1),
+    BMI_Mean = round(mean(bmi_mean, na.rm = TRUE), 1),
+    Male_Percent = round(mean(sex_male_percent, na.rm = TRUE), 1),
+    Female_Percent = round(mean(sex_female_percent, na.rm = TRUE), 1)
+  ) %>%
+  flextable() %>%
+  set_header_labels(
+    treatment_arm = "Treatment Arm",
+    N = "Sample Size",
+    Age_Mean = "Mean Age",
+    BMI_Mean = "Mean BMI",
+    Male_Percent = "% Male",
+    Female_Percent = "% Female"
+  ) %>%
+  autofit()
+
+#tplyr table 
+tplyr_table <- tplyr_table(baseline_clean, treatment_arm) %>%
+  add_layer(
+    group_desc(age_mean, by = "Age (Mean ± SD)")
+  ) %>%
+  add_layer(
+    group_desc(bmi_mean, by = "BMI (Mean ± SD)")
+  ) %>%
+  build()
+
+# Print table
+print(tplyr_table)
+```
+
+# Phase 3: Interactive Shiny Dashboard
+
+To explore the interactive dashboard for the clinical trial summary, please open and run the `app.R` file separately in RStudio.
+
+The dashboard includes: - Baseline data explorer by treatment arm - Adverse Events bar charts - Biomarker violin plots - Kaplan-Meier survival curves
+
+# Summary {.tabset}
+
+This interactive RMarkdown report summarizes clinical trial findings with embedded visualizations and tables. Use the tabs to explore each section.
+
+## Data Loading
+
+```{r}
+# Simulated biomarker data
+set.seed(123)
+biomarker_data <- expand.grid(
+  treatment_arm = c("Placebo", "Dapagliflozin 5mg", "Dapagliflazin 10mg"),
+  subject_id = 1:50
+) %>%
+  mutate(
+    responder_status = sample(c("Responder", "Non-Responder"), n(), replace = TRUE),
+    biomarker_level = round(rnorm(n(), mean = ifelse(responder_status == "Responder", 5.5, 4.2), sd = 1), 2)
+  )
+
+# Simulated baseline data
+baseline_clean <- data.frame(
+  treatment_arm = sample(c("Placebo","Dapagliflozin 5mg", "Dapagliflazin 10mg"), 150, replace = TRUE),
+  age_mean = rnorm(150, mean = 60, sd = 10),
+  bmi_mean = rnorm(150, mean = 27, sd = 4)
+)
+
+# Simulated AE data
+ae_clean <- data.frame(
+  treatment_arm = sample(c("Placebo", "Dapagliflozin 5mg", "Dapagliflazin 10mg"), 100, replace = TRUE),
+  ae_category = sample(c("Headache", "Nausea", "Fatigue"), 100, replace = TRUE),
+  n_events = sample(1:10, 100, replace = TRUE),
+  ae_severity = sample(c("Mild", "Moderate", "Severe"), 100, replace = TRUE)
+)
+
+# Simulated survival data
+surv_data <- data.frame(
+  time = rexp(150, 0.1),
+  status = sample(0:1, 150, replace = TRUE),
+  treatment = baseline_clean$treatment_arm)
+```
+
+------------------------------------------------------------------------
+
+# Interactive Widgets {.tabset}
+
+## Baseline Table
+
+```{r}
+DT::datatable(baseline_clean,
+              options = list(pageLength = 5, scrollX = TRUE),
+              caption = "Interactive Table: Baseline Characteristics")
+```
+
+## Adverse Events Plot
+
+```{r}
+ae_plot_static <- ggplot(ae_clean, aes(x = ae_category, y = n_events, fill = ae_severity)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~ treatment_arm) +
+  labs(title = "Adverse Events by Treatment Arm", x = "Adverse Event", y = "Event Count") +
+  theme_minimal()
+
+plotly::ggplotly(ae_plot_static)
+```
+
+## Biomarker Violin Plot
+
+```{r}
+biomarker_violin <- ggplot(biomarker_data, aes(x = responder_status, y = biomarker_level, fill = responder_status)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, fill = "white") +
+  facet_wrap(~ treatment_arm) +
+  labs(title = "Biomarker Levels by Responder Status", x = "Response", y = "Biomarker Level") +
+  theme_minimal()
+
+plotly::ggplotly(biomarker_violin)
+```
+
+## Kaplan-Meier Survival Plot
+
+```{r}
+km_fit <- survfit(Surv(time, status) ~ treatment, data = surv_data)
+
+survminer::ggsurvplot(km_fit, data = surv_data, pval = TRUE, risk.table = TRUE, 
+                      ggtheme = theme_minimal(), risk.table.y.text.col = TRUE)
+```
+
+------------------------------------------------------------------------
+
+> Note: Shiny dashboards require a separate runtime environment and are not rendered directly in this report.
+
+# Conclusion
+
+This RMarkdown report simulates a clinical trial summary workflow. It contains high-quality tables, survival plots, and interactive widgets
+
+# End of report
