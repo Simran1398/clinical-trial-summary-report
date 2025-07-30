@@ -27,7 +27,6 @@ This project simulates a real-world clinical trial summary analysis using public
 
 ## Folder Structure
 Clinical-Trial-Summary-Report-/
-│
 ├── data/ # Cleaned dataset (simulated from public sources)
 ├── R/ # R scripts for each stage of the analysis
 ├── outputs/ # Plots, summary tables, interactive HTML outputs
